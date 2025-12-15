@@ -44,7 +44,7 @@ public class GameScreen implements Screen {
     private float currentPlayerX;
 
     // (PENTING) Kecepatan geser kiri-kanan saat tombol ditahan
-    private final float STEER_SPEED = 8.0f;
+    private final float STEER_SPEED = 6.0f;
 
     // --- DEBUG ---
     private ShapeRenderer debugRenderer;
