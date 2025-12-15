@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 
@@ -22,47 +23,51 @@ public class GameScreen implements Screen {
     // --- ASET GAMBAR ---
     private Texture roadTexture;
     private Texture grassTexture;
-    private Texture playerTexture; // (BARU) Texture untuk mobil pemain
+    private Texture playerTexture;
 
     // --- BACKGROUND SCROLLING ---
     private float backgroundOffset = 0;
-    private final float SCROLL_SPEED = 5.0f; // Kecepatan jalan
+    private final float SCROLL_SPEED = 10.0f; // Kecepatan jalan ke bawah
 
-    // --- PENGATURAN 5 JALUR ---
+    // --- PENGATURAN AREA JALAN ---
     private final float GRASS_WIDTH = 1f;
-    private final float ROAD_WIDTH = WORLD_WIDTH - (GRASS_WIDTH * 2); // 8 meter
-    private final float LANE_WIDTH = ROAD_WIDTH / 5f; // 1.6 meter per jalur
+    private final float ROAD_WIDTH = WORLD_WIDTH - (GRASS_WIDTH * 2);
     private final float ROAD_START_X = GRASS_WIDTH;
     private final float ROAD_END_X = ROAD_START_X + ROAD_WIDTH;
 
-    // --- LOGIKA PEMAIN (BARU) ---
-    private int playerLane = 3; // Mulai di jalur tengah (Jalur 3 dari 5)
-    private float playerY = 2f; // Posisi Y (tinggi) mobil tetap di bawah
-    private float playerWidth = 1.2f; // Lebar mobil (dalam meter)
-    private float playerHeight = 2.0f; // Tinggi mobil (dalam meter)
+    // --- LOGIKA PEMAIN ---
+    private float playerWidth = 1.2f;
+    private float playerHeight = 2.0f;
+    private float playerY = 2f;
+
+    // Posisi X pemain sekarang (Mulai tepat di tengah layar)
+    private float currentPlayerX;
+
+    // (PENTING) Kecepatan geser kiri-kanan saat tombol ditahan
+    private final float STEER_SPEED = 8.0f;
 
     // --- DEBUG ---
     private ShapeRenderer debugRenderer;
-    private boolean debugMode = false; // Set ke true jika ingin lihat garis jalur
+    private boolean debugMode = false;
 
     public GameScreen(final Main game) {
         this.game = game;
 
-        // 1. Setup Kamera
         camera = new OrthographicCamera();
         viewport = new FitViewport(WORLD_WIDTH, WORLD_HEIGHT, camera);
         camera.position.set(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, 0);
 
-        // 2. Load Gambar
         roadTexture = new Texture(Gdx.files.internal("road_texture.png"));
         grassTexture = new Texture(Gdx.files.internal("grass_texture.png"));
-        playerTexture = new Texture(Gdx.files.internal("MC.png")); // (BARU) Load mobil
+        playerTexture = new Texture(Gdx.files.internal("MC.png"));
 
-        // Setting agar jalan bisa looping
         roadTexture.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat);
         grassTexture.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat);
 
         debugRenderer = new ShapeRenderer();
+
+        // Set posisi awal mobil di tengah-tengah jalan raya
+        currentPlayerX = (WORLD_WIDTH / 2) - (playerWidth / 2);
     }
 
     @Override
@@ -72,27 +77,31 @@ public class GameScreen implements Screen {
     }
 
     private void update(float delta) {
-        // 1. Gerakkan Jalan (Scrolling Background)
+        // 1. Gerakkan Jalan
         backgroundOffset += delta * SCROLL_SPEED;
         if (backgroundOffset > 100) backgroundOffset %= 100;
 
-        // 2. Cek Input Keyboard (BARU)
-        handleInput();
+        // 2. Cek Input (Gerakan Halus)
+        handleInput(delta);
+
+        // 3. Batasi agar mobil tidak keluar dari aspal (Nabrak Rumput)
+        // MathUtils.clamp memastikan nilai X tidak kurang dari batas kiri dan tidak lebih dari batas kanan
+        currentPlayerX = MathUtils.clamp(currentPlayerX, ROAD_START_X, ROAD_END_X - playerWidth);
     }
 
-    private void handleInput() {
-        // Pindah ke KIRI (Tombol Panah Kiri atau A)
-        if (Gdx.input.isKeyJustPressed(Input.Keys.LEFT) || Gdx.input.isKeyJustPressed(Input.Keys.A)) {
-            if (playerLane > 1) { // Hanya bisa pindah kalau belum di jalur paling kiri
-                playerLane--;
-            }
+    private void handleInput(float delta) {
+        // PERUBAHAN PENTING:
+        // Gunakan 'isKeyPressed' (bukan isKeyJustPressed).
+        // Ini akan mendeteksi selama tombol DITAHAN.
+
+        // Gerak ke KIRI
+        if (Gdx.input.isKeyPressed(Input.Keys.LEFT) || Gdx.input.isKeyPressed(Input.Keys.A)) {
+            currentPlayerX -= STEER_SPEED * delta; // Kurangi posisi X (geser kiri)
         }
 
-        // Pindah ke KANAN (Tombol Panah Kanan atau D)
-        if (Gdx.input.isKeyJustPressed(Input.Keys.RIGHT) || Gdx.input.isKeyJustPressed(Input.Keys.D)) {
-            if (playerLane < 5) { // Hanya bisa pindah kalau belum di jalur paling kanan
-                playerLane++;
-            }
+        // Gerak ke KANAN
+        if (Gdx.input.isKeyPressed(Input.Keys.RIGHT) || Gdx.input.isKeyPressed(Input.Keys.D)) {
+            currentPlayerX += STEER_SPEED * delta; // Tambah posisi X (geser kanan)
         }
     }
 
@@ -105,30 +114,21 @@ public class GameScreen implements Screen {
 
         game.batch.begin();
 
-        // 1. Gambar Background (Jalan & Rumput)
+        // Gambar Background
         drawScrollingTexture(grassTexture, 0, 0, GRASS_WIDTH, WORLD_HEIGHT);
         drawScrollingTexture(roadTexture, ROAD_START_X, 0, ROAD_WIDTH, WORLD_HEIGHT);
         drawScrollingTexture(grassTexture, ROAD_END_X, 0, GRASS_WIDTH, WORLD_HEIGHT);
 
-        // 2. Gambar Mobil Pemain (BARU)
-        // Hitung posisi X mobil berdasarkan Jalur saat ini (1-5)
-        // Rumus: Awal Jalan + (Nomor Jalur - 1 * Lebar Jalur) + (Setengah Lebar Jalur) - (Setengah Lebar Mobil)
-        float laneCenterX = ROAD_START_X + ((playerLane - 1) * LANE_WIDTH) + (LANE_WIDTH / 2);
-        float playerX = laneCenterX - (playerWidth / 2);
-
-        game.batch.draw(playerTexture, playerX, playerY, playerWidth, playerHeight);
+        // Gambar Mobil Pemain
+        game.batch.draw(playerTexture, currentPlayerX, playerY, playerWidth, playerHeight);
 
         game.batch.end();
 
-        // Debug Garis (Opsional)
         if (debugMode) drawDebugLines();
     }
 
-    /**
-     * Fungsi gambar background scrolling (Sudah diperbaiki arahnya)
-     */
     private void drawScrollingTexture(Texture texture, float x, float y, float width, float height) {
-        float vStart = -backgroundOffset / 10f; // Minus agar terlihat maju
+        float vStart = -backgroundOffset / 10f;
         float vEnd = vStart + (height / 10f);
         game.batch.draw(texture, x, y, width, height, 0, vEnd, 1, vStart);
     }
@@ -137,18 +137,14 @@ public class GameScreen implements Screen {
         debugRenderer.setProjectionMatrix(camera.combined);
         debugRenderer.begin(ShapeRenderer.ShapeType.Line);
         debugRenderer.setColor(1, 0, 0, 1);
-        for (int i = 1; i <= 5; i++) {
-            float laneX = ROAD_START_X + (i * LANE_WIDTH);
-            debugRenderer.line(laneX, 0, laneX, WORLD_HEIGHT);
-        }
+        // Gambar batas jalan saja
+        debugRenderer.line(ROAD_START_X, 0, ROAD_START_X, WORLD_HEIGHT);
+        debugRenderer.line(ROAD_END_X, 0, ROAD_END_X, WORLD_HEIGHT);
         debugRenderer.end();
     }
 
     @Override
-    public void resize(int width, int height) {
-        viewport.update(width, height);
-    }
-
+    public void resize(int width, int height) { viewport.update(width, height); }
     @Override
     public void show() { Gdx.input.setInputProcessor(null); }
     @Override
@@ -157,12 +153,11 @@ public class GameScreen implements Screen {
     public void pause() { }
     @Override
     public void resume() { }
-
     @Override
     public void dispose() {
         roadTexture.dispose();
         grassTexture.dispose();
-        playerTexture.dispose(); // (BARU) Jangan lupa buang sampah texture
+        playerTexture.dispose();
         debugRenderer.dispose();
     }
 }
