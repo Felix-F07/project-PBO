@@ -3,7 +3,6 @@ package com.badlogic.drop;
 import com.badlogic.gdx.graphics.Texture;
 
 public abstract class Enemy extends GameObject {
-    // [REVISI] Ubah protected menjadi private agar 100% sesuai syarat PDF
     private float speed;
 
     public Enemy(Texture texture, float x, float y, float speed) {

@@ -5,12 +5,11 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 
 public class Main extends Game {
     public SpriteBatch batch;
-    // BitmapFont font;  <-- HAPUS INI (Tidak terpakai)
 
     @Override
     public void create() {
         batch = new SpriteBatch();
-        // font = new BitmapFont(); <-- HAPUS INI
+
         this.setScreen(new MainMenuScreen(this));
     }
 
@@ -22,6 +21,5 @@ public class Main extends Game {
     @Override
     public void dispose() {
         batch.dispose();
-        // font.dispose(); <-- HAPUS INI
     }
 }
