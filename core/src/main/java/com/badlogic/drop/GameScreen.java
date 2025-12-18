@@ -73,7 +73,8 @@ public class GameScreen implements Screen {
     private class EnemyData {
         Rectangle rect;
         int textureIndex;
-        float stateTime; // [BARU] Timer khusus untuk animasi zig-zag
+        float stateTime;
+        float speedX; // [BARU] Kecepatan gerak kiri/kanan
     }
 
     public GameScreen(final Main game) {
@@ -118,32 +119,67 @@ public class GameScreen implements Screen {
         enemies = new Array<>();
         spawnEnemy();
 
+        // ... kode di atas ...
+
         // SETUP UI SKOR
         uiStage = new Stage(new ScreenViewport());
         Skin skin = new Skin(Gdx.files.internal("uiskin.json"));
 
         score = 0;
         scoreLabel = new Label("Score: 0", skin);
-        scoreLabel.setFontScale(1.5f);
-        scoreLabel.setPosition(20, Gdx.graphics.getHeight() - 50);
+
+        // --- BAGIAN YANG DIUBAH ---
+
+        // 1. Perbesar Ukuran Font (Coba ganti jadi 3.5f atau 4.0f)
+        scoreLabel.setFontScale(3.5f);
+
+        // 2. Turunkan Sedikit Posisinya (Ganti -50 jadi -100 biar ga kepotong)
+        scoreLabel.setPosition(20, Gdx.graphics.getHeight() - 100);
+
+        // --------------------------
+
         uiStage.addActor(scoreLabel);
-    }
+    } // Akhir dari Constructor
 
     private void spawnEnemy() {
         EnemyData enemy = new EnemyData();
         enemy.rect = new Rectangle();
         enemy.rect.width = 1.2f;
         enemy.rect.height = 2.0f;
-        enemy.stateTime = 0; // Reset waktu skill
+        enemy.stateTime = 0;
 
-        // Angka Jalur RAPI
-        float[] lanes = {1.35f, 3.35f, 5.35f, 7.35f};
-
-        int randomLaneIndex = MathUtils.random(0, lanes.length - 1);
-        enemy.rect.x = lanes[randomLaneIndex];
-
-        enemy.rect.y = WORLD_HEIGHT;
+        // Pilih tipe musuh secara acak
         enemy.textureIndex = MathUtils.random(0, enemyTextures.size - 1);
+
+        // --- LOGIKA BARU UNTUK SEDAN BLUE (Index 5) ---
+        // Asumsi urutan texture: 0-3 Truk, 4 Sedan Gray, 5 Sedan Blue
+        if (enemy.textureIndex == 5) {
+
+            // Tentukan posisi Y (Tetap dari atas layar)
+            enemy.rect.y = WORLD_HEIGHT + 2f; // Muncul agak jauh di atas
+
+            // Acak: Muncul dari KIRI atau KANAN?
+            boolean startFromLeft = MathUtils.randomBoolean();
+
+            if (startFromLeft) {
+                // Mulai dari LUAR KIRI layar, jalan ke KANAN
+                enemy.rect.x = -2.0f;
+                enemy.speedX = 5.0f; // Kecepatan positif (ke kanan)
+            } else {
+                // Mulai dari LUAR KANAN layar, jalan ke KIRI
+                enemy.rect.x = WORLD_WIDTH + 1.0f;
+                enemy.speedX = -5.0f; // Kecepatan negatif (ke kiri)
+            }
+
+        } else {
+            // --- LOGIKA MOBIL BIASA (Tetap di Jalur) ---
+            float[] lanes = {1.35f, 3.35f, 5.35f, 7.35f};
+            int randomLaneIndex = MathUtils.random(0, lanes.length - 1);
+
+            enemy.rect.x = lanes[randomLaneIndex];
+            enemy.rect.y = WORLD_HEIGHT;
+            enemy.speedX = 0; // Mobil biasa tidak geser kiri-kanan
+        }
 
         enemies.add(enemy);
         lastEnemySpawnTime = TimeUtils.nanoTime();
@@ -156,60 +192,81 @@ public class GameScreen implements Screen {
     }
 
     private void update(float delta) {
+        // ==========================================
+        // 1. GERAKKAN BACKGROUND JALAN
+        // ==========================================
         backgroundOffset += delta * SCROLL_SPEED;
         if (backgroundOffset > 100) backgroundOffset %= 100;
 
+        // ==========================================
+        // 2. UPDATE POSISI PEMAIN
+        // ==========================================
         handleInput(delta);
         currentPlayerX = MathUtils.clamp(currentPlayerX, ROAD_START_X, ROAD_END_X - playerWidth);
-
         playerRect.set(currentPlayerX, playerY, playerWidth, playerHeight);
 
-        if (TimeUtils.nanoTime() - lastEnemySpawnTime > 1000000000) {
+        // ==========================================
+        // 3. SPAWN MUSUH (MAKIN LAMA MAKIN CEPAT!)
+        // ==========================================
+
+        // Rumus: Waktu Dasar (1.2 detik) - (Skor * 0.02 detik)
+        // Jadi setiap dapat 1 poin, musuh muncul lebih cepat 0.02 detik.
+        long spawnInterval = 1200000000L - (score * 20000000L);
+
+        // Batasi (Clamp): Jangan biarkan interval lebih cepat dari 0.5 detik (500000000 nanosecond)
+        // Agar game tetap bisa dimainkan dan tidak nge-bug tumpuk-tumpuk.
+        if (spawnInterval < 500000000L) {
+            spawnInterval = 500000000L;
+        }
+
+        if (TimeUtils.nanoTime() - lastEnemySpawnTime > spawnInterval) {
             spawnEnemy();
         }
 
+        // ==========================================
+        // 4. LOGIKA PERGERAKAN SEMUA MUSUH
+        // ==========================================
         Iterator<EnemyData> iter = enemies.iterator();
         while (iter.hasNext()) {
             EnemyData enemy = iter.next();
 
-            // [SKILL MUSUH DIMULAI DI SINI]
+            if (enemy.textureIndex == 5) {
+                // SEDAN BLUE (Menyeberang)
+                enemy.rect.y -= (enemySpeed * 0.7f) * delta;
+                enemy.rect.x += enemy.speedX * delta;
 
-            // Cek warna truk berdasarkan Index Texture:
-            // 0 = Cream, 1 = Green, 2 = Blue, 3 = Red
-
-            if (enemy.textureIndex == 3) {
-                // --- SKILL 1: RED TRUCK (NGEBUT) ---
-                // Turun 1.5x lebih cepat dari normal
+            } else if (enemy.textureIndex == 3) {
+                // RED TRUCK (Ngebut)
                 enemy.rect.y -= (enemySpeed * 1.5f) * delta;
 
             } else if (enemy.textureIndex == 0) {
-                // --- SKILL 2: CREAM TRUCK (ZIG-ZAG / MABUK) ---
-                // Turun sedikit lebih pelan
+                // CREAM TRUCK (Zig-Zag)
                 enemy.rect.y -= (enemySpeed * 0.8f) * delta;
-
-                // Logika Matematika Sinus untuk gerakan gelombang kiri-kanan
                 enemy.stateTime += delta;
                 float zigZagAmount = MathUtils.sin(enemy.stateTime * 5.0f) * 3.0f * delta;
                 enemy.rect.x += zigZagAmount;
-
-                // Pastikan mobil mabuk tidak keluar aspal
                 enemy.rect.x = MathUtils.clamp(enemy.rect.x, ROAD_START_X, ROAD_END_X - enemy.rect.width);
 
             } else {
-                // --- NORMAL (Mobil Lain) ---
+                // NORMAL
                 enemy.rect.y -= enemySpeed * delta;
             }
 
-            // Logika Tambah Skor
+            // --- SKOR & HAPUS MUSUH ---
             if (enemy.rect.y + enemy.rect.height < 0) {
                 iter.remove();
                 score++;
                 scoreLabel.setText("Score: " + score);
             }
 
-            // Logika Game Over
-            if (enemy.rect.overlaps(playerRect)) {
-                game.setScreen(new MainMenuScreen(game));
+            // --- GAME OVER ---
+            // ... (kode sebelumnya) ...
+
+            // --- GAME OVER ---
+            else if (enemy.rect.overlaps(playerRect)) {
+                // GANTI BAGIAN INI:
+                // Panggil GameOverScreen dan kirim skor saat ini (score)
+                game.setScreen(new GameOverScreen(game, score));
                 dispose();
             }
         }
