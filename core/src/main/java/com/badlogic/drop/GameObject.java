@@ -28,12 +28,22 @@ public abstract class GameObject {
     public Texture getTexture() {
         return texture;
     }
-
-    public float getX() { return bounds.x; }
-    public float getY() { return bounds.y; }
-    public float getWidth() { return bounds.width; }
-    public float getHeight() { return bounds.height; }
-
-    public void setX(float x) { bounds.x = x; }
-    public void setY(float y) { bounds.y = y; }
+    public float getX() {
+        return bounds.x;
+    }
+    public float getY() {
+        return bounds.y;
+    }
+    public float getWidth() {
+        return bounds.width;
+    }
+    public float getHeight() {
+        return bounds.height;
+    }
+    public void setX(float x) {
+        bounds.x = x;
+    }
+    public void setY(float y) {
+        bounds.y = y;
+    }
 }
