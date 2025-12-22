@@ -19,25 +19,27 @@ import java.util.Iterator;
 public class GameScreen implements Screen {
     final Main game;
 
+    //  KAMERA & LAYAR
     private OrthographicCamera camera;
     private Viewport viewport;
     private final float WORLD_WIDTH = 10f;
     private final float WORLD_HEIGHT = 16f;
 
+    // ASET
     private Texture roadTexture;
     private Texture grassTexture;
     private Texture playerTexture;
 
+    // Koleksi Tekstur Musuh
+    private Array<Texture> textureNormal; // Truk & Trailer
+    private Array<Texture> textureZigzag; // Compact cars
+    private Array<Texture> textureFast;   // Sedans
 
-    private Array<Texture> textureNormal;
-    private Array<Texture> textureZigzag;
-    private Array<Texture> textureFast;
-
-
+    //  OBJEK GAME
     private Player player;
-    private Array<Enemy> enemies;
+    private Array<Enemy> enemies; // List Polimorfisme
 
-
+    // BACKGROUND SCROLLING
     private float backgroundOffset = 0;
     private final float SCROLL_SPEED = 10.0f;
     private final float GRASS_WIDTH = 1f;
@@ -45,7 +47,7 @@ public class GameScreen implements Screen {
     private final float ROAD_START_X = GRASS_WIDTH;
     private final float ROAD_END_X = ROAD_START_X + ROAD_WIDTH;
 
-
+    //  LOGIKA SPAWN
     private long lastEnemySpawnTime;
     private int score;
     private Stage uiStage;
@@ -58,23 +60,23 @@ public class GameScreen implements Screen {
         viewport = new FitViewport(WORLD_WIDTH, WORLD_HEIGHT, camera);
         camera.position.set(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, 0);
 
-
+        // 1. LOAD TEXTURES
         roadTexture = new Texture(Gdx.files.internal("road_texture.png"));
         grassTexture = new Texture(Gdx.files.internal("grass_texture.png"));
         playerTexture = new Texture(Gdx.files.internal("MC.png"));
 
-
+        // Load Texture Normal (Truk & Trailer)
         textureNormal = new Array<>();
         textureNormal.add(new Texture(Gdx.files.internal("truck_blue.png")));
         textureNormal.add(new Texture(Gdx.files.internal("truck_green.png")));
-        textureNormal.add(new Texture(Gdx.files.internal("trailer.png")));
+        textureNormal.add(new Texture(Gdx.files.internal("trailer.png"))); // Besar & Lambat
 
-
+        // Load Texture Zigzag (Compact Cars)
         textureZigzag = new Array<>();
         textureZigzag.add(new Texture(Gdx.files.internal("compact_red.png")));
-        textureZigzag.add(new Texture(Gdx.files.internal("compact_blue.png")));
+        textureZigzag.add(new Texture(Gdx.files.internal("compact_blue.png"))); // Pastikan file ada di assets
 
-
+        // Load Texture Fast (Sedan)
         textureFast = new Array<>();
         textureFast.add(new Texture(Gdx.files.internal("sedan_red.png")));
         textureFast.add(new Texture(Gdx.files.internal("sedan_blue.png")));
@@ -82,12 +84,12 @@ public class GameScreen implements Screen {
         roadTexture.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat);
         grassTexture.setWrap(Texture.TextureWrap.Repeat, Texture.TextureWrap.Repeat);
 
-
+        // INISIALISASI
         player = new Player(playerTexture);
         enemies = new Array<>();
         spawnEnemy();
 
-
+        // UI
         uiStage = new Stage(new ScreenViewport());
         Skin skin = new Skin(Gdx.files.internal("uiskin.json"));
         score = 0;
@@ -98,6 +100,7 @@ public class GameScreen implements Screen {
     }
 
     private void spawnEnemy() {
+        // Tentukan Posisi Awal
         float[] lanes = {1.35f, 3.35f, 5.35f, 7.35f};
         int laneIndex = MathUtils.random(0, lanes.length - 1);
         float spawnX = lanes[laneIndex];
@@ -106,19 +109,20 @@ public class GameScreen implements Screen {
         Enemy newEnemy;
         int typeChance = MathUtils.random(1, 100);
 
-        if (typeChance <= 40) {
+        // LOGIKA PEMILIHAN TIPE MUSUH (POLIMORFISME)
 
+        if (typeChance <= 40) {
+            // 40% Kemungkinan: NORMAL (Truk/Trailer) - Lurus Saja
             Texture tex = textureNormal.random();
             newEnemy = new NormalEnemy(tex, spawnX, spawnY);
 
         } else if (typeChance <= 70) {
-
+            // 30% Kemungkinan: ZIGZAG (Compact Car) - Gerak Kiri Kanan
             Texture tex = textureZigzag.random();
-            newEnemy = new ZigzagEnemy(tex, spawnX, spawnY);
+            newEnemy = new ZigzagEnemy(tex, spawnX, spawnY); // Class Baru!
 
-        }
-        else {
-
+        } else {
+            // 30% Kemungkinan: FAST (Sedan) - Ngebut
             Texture tex = textureFast.random();
             newEnemy = new FastEnemy(tex, spawnX, spawnY);
         }
@@ -139,9 +143,11 @@ public class GameScreen implements Screen {
 
         player.update(delta);
 
-
+        // Spawn Logic
         long spawnInterval = 1000000000L - (score * 10000000L);
-        if (spawnInterval < 400000000L) spawnInterval = 400000000L;
+        if (spawnInterval < 400000000L){
+            spawnInterval = 400000000L;
+        }
 
         if (TimeUtils.nanoTime() - lastEnemySpawnTime > spawnInterval) {
             spawnEnemy();
@@ -151,6 +157,9 @@ public class GameScreen implements Screen {
         while (iter.hasNext()) {
             Enemy enemy = iter.next();
 
+            //  INI KUNCI OOP
+            // Kita panggil .update(), dan setiap musuh akan bergerak sesuai class-nya
+            // ZigzagEnemy akan goyang, FastEnemy akan ngebut, Normal akan lurus.
             enemy.update(delta);
 
             if (enemy.getBounds().overlaps(player.getBounds())) {
@@ -160,7 +169,6 @@ public class GameScreen implements Screen {
             }
 
             if (enemy.isOffScreen()) {
-                iter.remove();
                 score++;
                 scoreLabel.setText("Score: " + score);
             }
